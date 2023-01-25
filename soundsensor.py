@@ -3,7 +3,7 @@ import _thread
 import time
 
 __author__ = "cvcvka5"
-__version__ = 1.0.5
+__version__ = "1.0.5"
 
 
 class SoundSensor(object):
