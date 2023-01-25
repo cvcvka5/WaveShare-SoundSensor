@@ -3,7 +3,7 @@ import _thread
 import time
 
 __author__ = "cvcvka5"
-__version__ = "1.0.5"
+__version__ = "1.0.6"
 
 
 class SoundSensor(object):
@@ -35,7 +35,7 @@ class SoundSensor(object):
                 if lower_wait_threshold_ms < t-last < upper_wait_threshold_ms:
                     clap += 1
                 # If the the clap comes after 350ms but not before 150ms then render it as a first-time clap.
-                elif t-last >= upper_wait_threshold_ms:
+                if t-last >= upper_wait_threshold_ms:
                     clap = 1
                 
                 last = t
