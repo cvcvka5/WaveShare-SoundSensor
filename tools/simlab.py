@@ -18,6 +18,8 @@ PALS = {
                  stops=["#22d3ee", "#6366f1", "#8b5cf6", "#e879f9", "#22d3ee"], text="#ffffff"),
     "lab": dict(bg="#0a0705", bg2="#241609", ring="#ffb020",
                 stops=["#ffb020", "#ff6b2c", "#ffd23f", "#fff3c4", "#ffb020"], text="#fff6e0"),
+    "tt": dict(bg="#04100a", bg2="#0c2a14", ring="#a3e635",
+               stops=["#a3e635", "#34d399", "#4ade80", "#d9f99d", "#a3e635"], text="#f7fee7"),
 }
 SCALE = [60, 62, 64, 67, 69, 72, 74, 76, 79, 81, 84, 86, 88, 91]
 
