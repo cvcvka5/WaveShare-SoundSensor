@@ -287,7 +287,7 @@ def sim_paint(T, seed, size=64, A=860, target=0.985, sub=600):
 
 # ---------------- renderers ----------------
 # ---------------- multiply: every wall bounce adds exactly one ball ----------------
-def sim_multiply(T, seed, R=424, r=9.0, v=470.0, cap=1000, sub=240):
+def sim_multiply(T, seed, R=424, r=9.0, v=700.0, cap=1000, sub=240):
     """Balls bounce in a circle (no gravity, constant speed). RULE: every wall bounce splits that ball in two,
     no cooldown. Only the cap stops a split. The first bounce comes after ~0.35 s so the video opens with action.
     Returns frames (dict per frame, cumulative counters included) and stats."""
