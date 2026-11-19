@@ -20,6 +20,15 @@ PALS = {
                 stops=["#ffb020", "#ff6b2c", "#ffd23f", "#fff3c4", "#ffb020"], text="#fff6e0"),
     "tt": dict(bg="#04100a", bg2="#0c2a14", ring="#a3e635",
                stops=["#a3e635", "#34d399", "#4ade80", "#d9f99d", "#a3e635"], text="#f7fee7"),
+    # soft, low-contrast palettes for TikTok/YouTube: one hue family per gradient, no harsh jumps
+    "tt_peach": dict(bg="#140a0e", bg2="#2b1621", ring="#fda4af",
+                     stops=["#fda4af", "#fb9bb0", "#fdba9a", "#fde0b0", "#fda4af"], text="#fff1f2"),
+    "tt_ocean": dict(bg="#041014", bg2="#0a2a30", ring="#5eead4",
+                     stops=["#5eead4", "#67e8f9", "#7dd3fc", "#a7f3d0", "#5eead4"], text="#f0fdfa"),
+    "tt_lav": dict(bg="#0d0a16", bg2="#221a3a", ring="#c4b5fd",
+                   stops=["#c4b5fd", "#d8b4fe", "#f0abfc", "#fbcfe8", "#c4b5fd"], text="#faf5ff"),
+    "tt_sand": dict(bg="#100e0a", bg2="#292317", ring="#fcd9a8",
+                    stops=["#fcd9a8", "#f7c9a0", "#f3d9b1", "#fff1d6", "#fcd9a8"], text="#fffaf0"),
 }
 SCALE = [60, 62, 64, 67, 69, 72, 74, 76, 79, 81, 84, 86, 88, 91]
 
