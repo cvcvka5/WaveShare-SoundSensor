@@ -512,7 +512,7 @@ def render(a):
                 yield fr
         encode(a.out, wav, gen(), T)
 
-    elif a.kind == "multiply":
+    elif a.kind == "multiply2":
         R = 424
         bg = make_bg(pal, "circle", R)
         frames, events = sim_multiply(T, a.seed, R=R)
@@ -546,7 +546,7 @@ def render(a):
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--kind", required=True, choices=["fill", "shrink", "paint", "multiply"])
+    ap.add_argument("--kind", required=True, choices=["fill", "shrink", "paint", "multiply", "multiply2"])
     ap.add_argument("--pal", required=True, choices=list(PALS))
     ap.add_argument("--title", required=True)
     ap.add_argument("--T", type=float, default=50.0)
