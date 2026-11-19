@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """simlab: original long-form physics-sim Reels (1080x1920, 30fps, H.264 + AAC).
 Kinds: fill (growing ball leaves rings, fills the arena), paint (block paints a square),
-shrink (ball shrinks to nothing, live size counter).
+shrink (ball shrinks to nothing, live size counter),
+multiply (every wall bounce adds one ball; the render self-verifies counts, see verify_*).
 Usage: simlab.py --kind fill --pal bb00 --title "..." --T 50 --seed 7 --out out/x.mp4 [--meta out/x.json]
 """
 import argparse, json, math, os, random, subprocess, sys
@@ -117,7 +118,15 @@ def overlays(frame, color):
     o["n"] += 1
     if o["series"]:
         blit_fade(frame, text_layer(o["series"], 34, color), CX, 130, 0.7)
-    if o["hook"]:
+    if o["hook"] and o.get("hook_top"):
+        # hook between title and arena, fully visible from frame 0
+        lines = o["hook"].split("|")
+        blit_fade(frame, text_layer(lines[0], 58, color), CX, 450, fade(t, -1.0, 3.8, 0.5))
+        y = 1800
+        for ln in lines[1:]:
+            blit_fade(frame, text_layer(ln, 40, color), CX, y, fade(t, -1.0, 3.8, 0.5))
+            y += 56
+    elif o["hook"]:
         y = 1625
         for ln in o["hook"].split("|"):
             blit_fade(frame, text_layer(ln, 44, color), CX, y, fade(t, 0.3, 3.6))
@@ -214,47 +223,6 @@ def sim_circle(T, seed, r_of, grow, R=424, g=900.0, v0=620.0, sub=600):
 
 
 
-def sim_multiply(T, seed, R=424, g=700.0, v0=520.0, rb=13.0, cap=300, sub=300):
-    """Many balls in a circle; a wall bounce spawns one extra ball while count < schedule(t).
-    Returns per-frame arrays of (x,y,spawn_index) and spawn events (t, count, vel)."""
-    rng = np.random.default_rng(seed)
-    ang = rng.uniform(0, 2 * np.pi)
-    P = np.zeros((cap, 2)); V = np.zeros((cap, 2)); alive = np.zeros(cap, bool)
-    P[0] = (rng.uniform(-60, 60), rng.uniform(-60, 60)); V[0] = (v0 * np.cos(ang), v0 * np.sin(ang)); alive[0] = True
-    n = 1
-    dt = 1.0 / sub
-    per = sub // FPS
-    frames, events = [], []
-    lim = R - rb
-    for i in range(int(T * sub)):
-        t = i * dt
-        a = alive
-        V[a, 1] += g * dt
-        P[a] += V[a] * dt
-        d = np.hypot(P[:, 0], P[:, 1])
-        hit = a & (d >= lim)
-        if hit.any():
-            idx = np.nonzero(hit)[0]
-            for j in idx:
-                nx, ny = P[j, 0] / d[j], P[j, 1] / d[j]
-                dot = V[j, 0] * nx + V[j, 1] * ny
-                if dot > 0:
-                    V[j] -= 2 * dot * np.array([nx, ny])
-                    P[j] = np.array([nx, ny]) * (lim - 0.5)
-                    allowed = 1 + int((cap - 1) * min(1.0, t / (T - 4.0)) ** 1.6)
-                    if n < min(cap, allowed):
-                        jit = rng.uniform(-0.35, 0.35)
-                        c, sn = np.cos(jit), np.sin(jit)
-                        P[n] = P[j]
-                        V[n] = (V[j, 0] * c - V[j, 1] * sn, V[j, 0] * sn + V[j, 1] * c)
-                        alive[n] = True
-                        n += 1
-                        events.append((t, n, abs(dot)))
-        if i % per == 0:
-            frames.append((P[:n, 0].copy(), P[:n, 1].copy(), n))
-    return frames, events
-
-
 def solve_fill(T, seed, target=0.955, R=424):
     lo, hi = 0.02, 14.0
     best = None
@@ -317,43 +285,183 @@ def sim_paint(T, seed, size=64, A=860, target=0.985, sub=600):
 
 
 
-def sim_multiply(T, seed, R=424, r=15.0, v=300.0, cool=4.8, cap=420, sub=240):
-    """Balls in a circle, no gravity. Each wall bounce splits that ball in two (cooldown per ball)."""
-    rng = random.Random(seed)
-    a0 = rng.uniform(0, 2 * math.pi)
-    P = [[0.0, 0.0, v * math.cos(a0), v * math.sin(a0), 0.0, 0]]  # x,y,vx,vy,last_split,gen
-    dt = 1.0 / sub
+# ---------------- renderers ----------------
+# ---------------- multiply: every wall bounce adds exactly one ball ----------------
+def sim_multiply(T, seed, R=424, r=9.0, v=470.0, cap=1000, sub=240):
+    """Balls bounce in a circle (no gravity, constant speed). RULE: every wall bounce splits that ball in two,
+    no cooldown. Only the cap stops a split. The first bounce comes after ~0.35 s so the video opens with action.
+    Returns frames (dict per frame, cumulative counters included) and stats."""
+    rng = np.random.default_rng(seed)
+    P = np.zeros((cap, 2)); V = np.zeros((cap, 2))
+    u = rng.uniform(0, 2 * np.pi)
+    ux, uy = np.cos(u), np.sin(u)
+    tilt = rng.uniform(-0.35, 0.35)
+    P[0] = (R - r - v * 0.35) * np.array([ux, uy])
+    V[0] = v * np.array([np.cos(u + tilt), np.sin(u + tilt)])
+    n, lim, dt = 1, R - r, 1.0 / sub
     per = sub // FPS
-    frames, events = [], []
+    frames, bounces, spawns, blocked = [], 0, 0, 0
+    hits_acc = []
+    first_bounce_t = None
     for i in range(int(T * sub)):
         t = i * dt
-        new = []
-        for b in P:
-            b[0] += b[2] * dt
-            b[1] += b[3] * dt
-            d = math.hypot(b[0], b[1])
-            if d + r >= R:
-                nx, ny = b[0] / d, b[1] / d
-                dot = b[2] * nx + b[3] * ny
-                if dot > 0:
-                    b[2] -= 2 * dot * nx
-                    b[3] -= 2 * dot * ny
-                    if len(P) + len(new) < cap and t - b[4] >= cool:
-                        b[4] = t
-                        b[5] += 1
-                        ang = math.atan2(b[3], b[2]) + rng.choice([-1, 1]) * rng.uniform(0.5, 1.1)
-                        sp = math.hypot(b[2], b[3])
-                        new.append([b[0], b[1], sp * math.cos(ang), sp * math.sin(ang), t, b[5]])
-                        events.append((t, len(P) + len(new), 1.0))
-                lim = R - r - 0.5
-                b[0], b[1] = nx * lim, ny * lim
-        P.extend(new)
-        # child may start outside after rotation: pull inward next step handled by bounce test
+        P[:n] += V[:n] * dt
+        d = np.hypot(P[:n, 0], P[:n, 1])
+        cand = np.nonzero(d >= lim)[0]
+        for j in cand:
+            nx, ny = P[j, 0] / d[j], P[j, 1] / d[j]
+            dot = V[j, 0] * nx + V[j, 1] * ny
+            if dot <= 0:
+                continue
+            V[j] -= 2 * dot * np.array([nx, ny])
+            P[j] = np.array([nx, ny]) * (lim - 0.5)
+            bounces += 1
+            if first_bounce_t is None:
+                first_bounce_t = t
+            hits_acc.append((t, float(P[j, 0]), float(P[j, 1])))
+            if n < cap:
+                th = rng.uniform(0.5, 1.1) * rng.choice([-1.0, 1.0])
+                for _ in range(2):
+                    c, sn = np.cos(th), np.sin(th)
+                    cv = np.array([V[j, 0] * c - V[j, 1] * sn, V[j, 0] * sn + V[j, 1] * c])
+                    if cv[0] * nx + cv[1] * ny < 0:   # child must head inward
+                        break
+                    th = -th
+                P[n] = P[j]; V[n] = cv
+                n += 1; spawns += 1
+            else:
+                blocked += 1
         if i % per == 0:
-            frames.append([(b[0], b[1], b[5]) for b in P])
-    return frames, events
+            frames.append(dict(t=t, xy=P[:n].copy(), n=n, bounces=bounces, spawns=spawns, hits=hits_acc[-40:] if hits_acc else []))
+            hits_acc = []
+    stats = dict(bounces=bounces, spawns=spawns, blocked_by_cap=blocked, final_balls=n, cap=cap,
+                 first_bounce_t=first_bounce_t, R=R, r=r)
+    return frames, stats
 
-# ---------------- renderers ----------------
+
+def verify_multiply(frames, stats, T):
+    """Hard check on the simulation: raises AssertionError if any bounce was not counted."""
+    R, r, cap = stats["R"], stats["r"], stats["cap"]
+    prev_n = 0
+    for k, f in enumerate(frames):
+        assert f["n"] == 1 + f["spawns"], f"frame {k}: counter {f['n']} != 1 + spawns {f['spawns']}"
+        assert len(f["xy"]) == f["n"], f"frame {k}: drawn balls {len(f['xy'])} != counter {f['n']}"
+        assert f["n"] >= prev_n, f"frame {k}: ball count went down"
+        if f["n"] < cap:
+            assert f["spawns"] == f["bounces"], f"frame {k}: {f['bounces']} bounces but only {f['spawns']} spawns"
+        assert float(np.hypot(f["xy"][:, 0], f["xy"][:, 1]).max()) <= R - r + 1.5, f"frame {k}: ball outside arena"
+        prev_n = f["n"]
+    assert stats["spawns"] + stats["blocked_by_cap"] == stats["bounces"], "bounce bookkeeping mismatch"
+    assert stats["first_bounce_t"] is not None and stats["first_bounce_t"] <= 0.8, f"first bounce too late: {stats['first_bounce_t']}"
+    assert stats["final_balls"] >= 200, f"too few balls at the end: {stats['final_balls']} (T too short?)"
+    return True
+
+
+def verify_video(path, frames, T, hook=None):
+    """Check the finished MP4: format, audio, first frame has content, and the on-screen counters
+    (read back with OCR from sampled frames) equal the simulation."""
+    import pytesseract
+    pr = json.loads(subprocess.check_output(["ffprobe", "-v", "error", "-print_format", "json", "-show_streams",
+                                             "-show_format", path]))
+    vs = [s for s in pr["streams"] if s["codec_type"] == "video"][0]
+    assert (vs["width"], vs["height"]) == (W, H), f"bad size {vs['width']}x{vs['height']}"
+    assert any(s["codec_type"] == "audio" for s in pr["streams"]), "no audio track"
+    dur = float(pr["format"]["duration"])
+    assert abs(dur - (T + 1.0)) < 0.8, f"duration {dur:.1f}s vs expected ~{T + 1:.0f}s"
+    cap = cv2.VideoCapture(path)
+    checked, imgs = [], []
+    for ts in [0.0, 1.0, 3.0, 5.0, 7.0, T * 0.5, T * 0.9]:
+        fi = min(int(ts * FPS), len(frames) - 1)
+        cap.set(cv2.CAP_PROP_POS_FRAMES, fi)
+        ok, img = cap.read()
+        assert ok, f"cannot decode frame {fi}"
+        imgs.append(img)
+        if fi == 0:
+            assert img.mean() > 8, "first frame is nearly black"
+            if hook:
+                assert (img[440:530].max(axis=2) > 200).sum() > 400, "hook text not visible on frame 0"
+            continue
+        for name, (y0, y1), want in (("balls", NUM_BALLS, frames[fi]["n"]), ("bounces", NUM_BOUNCES, frames[fi]["bounces"])):
+            if want < 10:      # single digits are too small/ambiguous for OCR; sim check already covers them
+                continue
+            crop = cv2.cvtColor(img[y0:y1, 190:890], cv2.COLOR_BGR2GRAY)
+            crop = 255 - cv2.threshold(crop, 140, 255, cv2.THRESH_BINARY)[1]
+            crop = cv2.copyMakeBorder(crop, 25, 25, 25, 25, cv2.BORDER_CONSTANT, value=255)
+            txt = pytesseract.image_to_string(crop, config="--psm 7 -c tessedit_char_whitelist=0123456789").strip()
+            assert txt == str(want), f"frame {fi}: screen {name}='{txt}' but sim says {want}"
+        checked.append(fi)
+    cap.release()
+    assert float(np.abs(imgs[2].astype(np.int16) - imgs[4].astype(np.int16)).mean()) > 0.5, "video looks frozen"
+    return dict(duration=round(dur, 2), frames_checked=checked)
+
+
+NUM_BALLS = (1505, 1640)      # y-range of the big BALLS number
+NUM_BOUNCES = (1712, 1790)    # y-range of the BOUNCES number
+
+
+def render_multiply(a, meta, wav, tcol_rgb):
+    R = 424
+    pal = PALS[a.pal]
+    bg = make_bg(pal, "circle", R)
+    frames, stats = sim_multiply(a.T, a.seed, R=R)
+    verify_multiply(frames, stats, a.T)          # check 1: every bounce counted, nothing outside the arena
+    ringc = hexbgr(pal["ring"])
+    cap = stats["cap"]
+    cols = [grad(pal["stops"], (k / cap) * 1.6) for k in range(cap)]
+    rr = int(stats["r"])
+    # sound: a bell per bounce (thinned), pitch climbs with log2(ball count)
+    ev, last = [], -1.0
+    for f in frames:
+        for (ht, hx, hy) in f["hits"]:
+            if ht - last >= 0.07:
+                step = min(len(SCALE) - 1, int(math.log2(max(1, f["n"])) / math.log2(cap) * (len(SCALE) - 1)))
+                ev.append((ht, SCALE[step], 0.26)); last = ht
+    make_audio(ev, a.T, wav)
+    OVERLAY.update(hook_top=True)
+    pops = []   # (frame_index, x, y) for the first few "+1" pops
+
+    def gen():
+        nonlocal pops
+        for i, f in enumerate(frames):
+            fr = bg.copy()
+            layer = np.zeros_like(fr)
+            xy = f["xy"]
+            for k in range(f["n"]):
+                cv2.circle(layer, (int(CX + xy[k, 0]), int(CY + xy[k, 1])), rr, cols[k], -1, cv2.LINE_AA)
+            glow = cv2.GaussianBlur(layer, (0, 0), 12)
+            fr = cv2.add(fr, (glow * 0.8).astype(np.uint8))
+            m = layer.any(axis=2, keepdims=True)
+            fr = np.where(m, layer, fr)
+            if f["hits"] and f["spawns"] <= 14:
+                for (ht, hx, hy) in f["hits"][:2]:
+                    pops.append((i, hx, hy))
+            pops = [p for p in pops if i - p[0] <= 14]
+            for (pi, hx, hy) in pops:
+                k = 1.0 - (i - pi) / 14.0
+                px = int(CX + hx * 0.8); py = int(CY + hy * 0.8 - (i - pi) * 2)
+                blit_fade(fr, text_layer("+1", 56, tcol_rgb), px, py - 28, k)
+            nh = len(f["hits"])
+            if nh and i > 0:
+                cv2.circle(fr, (CX, CY), R, ringc, 4 + min(10, nh), cv2.LINE_AA)
+            title_block(fr, a.title, tcol_rgb)
+            blit(fr, text_layer("BALLS" if f["n"] < cap else "BALLS (MAX)", 40, tcol_rgb), CX, 1462)
+            blit(fr, text_layer(str(f["n"]), 112, tcol_rgb), CX, 1500)
+            blit(fr, text_layer("BOUNCES", 30, tcol_rgb), CX, 1640)
+            blit(fr, text_layer(str(f["bounces"]), 52, tcol_rgb), CX, 1695)
+            yield fr
+        for _ in range(int(1.0 * FPS)):
+            yield fr
+    encode(a.out, wav, gen(), a.T)
+    meta.update(bounces=stats["bounces"], spawns=stats["spawns"], final_balls=stats["final_balls"],
+                first_bounce_s=round(stats["first_bounce_t"], 2), blocked_by_cap=stats["blocked_by_cap"])
+    try:
+        meta["video_check"] = verify_video(a.out, frames, a.T, a.hook)   # check 2: what is on screen == the simulation
+    except AssertionError as e:
+        os.remove(a.out)
+        sys.exit(f"VERIFY FAILED, video deleted: {e}")
+    meta["verified"] = True
+
+
 def encode(out, audio, frame_iter, T):
     cmd = ["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "bgr24", "-s", f"{W}x{H}", "-r", str(FPS),
            "-i", "-", "-i", audio, "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p",
@@ -447,36 +555,8 @@ def render(a):
                 yield fr
         encode(a.out, wav, gen(), T)
 
-    elif a.kind == "multiply":
-        R = 424
-        bg = make_bg(pal, "circle", R)
-        frames, events = sim_multiply(T, a.seed, R=R)
-        meta.update(final_balls=frames[-1][2], spawns=len(events))
-        notes, last, rng = [], -1.0, random.Random(a.seed)
-        for (t, c, v) in events:
-            if t - last >= 0.11:
-                notes.append((t, SCALE[min(len(SCALE) - 1, int(c / 300 * len(SCALE) * 0.98))], 0.22 + 0.08 * min(1, v / 900)))
-                last = t
-        make_audio(notes, T, wav)
-
-        def gen():
-            nfr = len(frames)
-            for i, (xs, ys, n) in enumerate(frames):
-                fr = bg.copy()
-                layer = np.zeros_like(fr)
-                for k in range(n):
-                    col = grad(pal["stops"], (k / 300.0) * 1.6)
-                    cv2.circle(layer, (int(CX + xs[k]), int(CY + ys[k])), 13, col, -1, cv2.LINE_AA)
-                glow = cv2.GaussianBlur(layer, (0, 0), 14)
-                fr = cv2.add(fr, (glow * 0.8).astype(np.uint8))
-                m = layer.any(axis=2, keepdims=True)
-                fr = np.where(m, layer, fr)
-                title_block(fr, a.title, tcol_rgb)
-                blit(fr, text_layer(f"Balls: {n}", 64, tcol_rgb), CX, 1500)
-                yield fr
-            for _ in range(int(1.0 * FPS)):
-                yield fr
-        encode(a.out, wav, gen(), T)
+    elif a.kind in ("multiply", "multiply2"):
+        render_multiply(a, meta, wav, tcol_rgb)
 
     elif a.kind == "paint":
         A = 860
@@ -512,32 +592,6 @@ def render(a):
                 yield fr
         encode(a.out, wav, gen(), T)
 
-    elif a.kind == "multiply2":
-        R = 424
-        bg = make_bg(pal, "circle", R)
-        frames, events = sim_multiply(T, a.seed, R=R)
-        meta.update(final_balls=len(frames[-1]), splits=len(events))
-        ev, last = [], -1.0
-        rng = random.Random(a.seed)
-        for (t, n, vv) in events:
-            if t - last >= 0.12:
-                ev.append((t, SCALE[min(len(SCALE) - 1, int(n / 420 * len(SCALE)))], 0.3))
-                last = t
-        make_audio(ev, T, wav)
-
-        def gen():
-            for i, balls in enumerate(frames):
-                fr = bg.copy()
-                for (x, y, g) in balls:
-                    col = grad(pal["stops"], (g * 0.11) % 1.0)
-                    cv2.circle(fr, (int(CX + x), int(CY + y)), 15, col, -1, cv2.LINE_AA)
-                    cv2.circle(fr, (int(CX + x), int(CY + y)), 15, (255, 255, 255), 1, cv2.LINE_AA)
-                title_block(fr, a.title, tcol_rgb)
-                blit(fr, text_layer(f"Balls: {len(balls)}", 56, tcol_rgb), CX, 1500)
-                yield fr
-            for _ in range(int(1.0 * FPS)):
-                yield fr
-        encode(a.out, wav, gen(), T)
 
     if a.meta:
         json.dump(meta, open(a.meta, "w"), indent=2)
