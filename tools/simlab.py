@@ -274,6 +274,43 @@ def sim_paint(T, seed, size=64, A=860, target=0.985, sub=600):
     return best
 
 
+
+def sim_multiply(T, seed, R=424, r=15.0, v=300.0, cool=4.8, cap=420, sub=240):
+    """Balls in a circle, no gravity. Each wall bounce splits that ball in two (cooldown per ball)."""
+    rng = random.Random(seed)
+    a0 = rng.uniform(0, 2 * math.pi)
+    P = [[0.0, 0.0, v * math.cos(a0), v * math.sin(a0), 0.0, 0]]  # x,y,vx,vy,last_split,gen
+    dt = 1.0 / sub
+    per = sub // FPS
+    frames, events = [], []
+    for i in range(int(T * sub)):
+        t = i * dt
+        new = []
+        for b in P:
+            b[0] += b[2] * dt
+            b[1] += b[3] * dt
+            d = math.hypot(b[0], b[1])
+            if d + r >= R:
+                nx, ny = b[0] / d, b[1] / d
+                dot = b[2] * nx + b[3] * ny
+                if dot > 0:
+                    b[2] -= 2 * dot * nx
+                    b[3] -= 2 * dot * ny
+                    if len(P) + len(new) < cap and t - b[4] >= cool:
+                        b[4] = t
+                        b[5] += 1
+                        ang = math.atan2(b[3], b[2]) + rng.choice([-1, 1]) * rng.uniform(0.5, 1.1)
+                        sp = math.hypot(b[2], b[3])
+                        new.append([b[0], b[1], sp * math.cos(ang), sp * math.sin(ang), t, b[5]])
+                        events.append((t, len(P) + len(new), 1.0))
+                lim = R - r - 0.5
+                b[0], b[1] = nx * lim, ny * lim
+        P.extend(new)
+        # child may start outside after rotation: pull inward next step handled by bounce test
+        if i % per == 0:
+            frames.append([(b[0], b[1], b[5]) for b in P])
+    return frames, events
+
 # ---------------- renderers ----------------
 def encode(out, audio, frame_iter, T):
     cmd = ["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "bgr24", "-s", f"{W}x{H}", "-r", str(FPS),
@@ -402,6 +439,33 @@ def render(a):
                 yield fr
         encode(a.out, wav, gen(), T)
 
+    elif a.kind == "multiply":
+        R = 424
+        bg = make_bg(pal, "circle", R)
+        frames, events = sim_multiply(T, a.seed, R=R)
+        meta.update(final_balls=len(frames[-1]), splits=len(events))
+        ev, last = [], -1.0
+        rng = random.Random(a.seed)
+        for (t, n, vv) in events:
+            if t - last >= 0.12:
+                ev.append((t, SCALE[min(len(SCALE) - 1, int(n / 420 * len(SCALE)))], 0.3))
+                last = t
+        make_audio(ev, T, wav)
+
+        def gen():
+            for i, balls in enumerate(frames):
+                fr = bg.copy()
+                for (x, y, g) in balls:
+                    col = grad(pal["stops"], (g * 0.11) % 1.0)
+                    cv2.circle(fr, (int(CX + x), int(CY + y)), 15, col, -1, cv2.LINE_AA)
+                    cv2.circle(fr, (int(CX + x), int(CY + y)), 15, (255, 255, 255), 1, cv2.LINE_AA)
+                title_block(fr, a.title, tcol_rgb)
+                blit(fr, text_layer(f"Balls: {len(balls)}", 56, tcol_rgb), CX, 1500)
+                yield fr
+            for _ in range(int(1.0 * FPS)):
+                yield fr
+        encode(a.out, wav, gen(), T)
+
     if a.meta:
         json.dump(meta, open(a.meta, "w"), indent=2)
     print(json.dumps(meta))
@@ -409,7 +473,7 @@ def render(a):
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--kind", required=True, choices=["fill", "shrink", "paint"])
+    ap.add_argument("--kind", required=True, choices=["fill", "shrink", "paint", "multiply"])
     ap.add_argument("--pal", required=True, choices=list(PALS))
     ap.add_argument("--title", required=True)
     ap.add_argument("--T", type=float, default=50.0)
