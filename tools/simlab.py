@@ -213,6 +213,48 @@ def sim_circle(T, seed, r_of, grow, R=424, g=900.0, v0=620.0, sub=600):
     return frames, events
 
 
+
+def sim_multiply(T, seed, R=424, g=700.0, v0=520.0, rb=13.0, cap=300, sub=300):
+    """Many balls in a circle; a wall bounce spawns one extra ball while count < schedule(t).
+    Returns per-frame arrays of (x,y,spawn_index) and spawn events (t, count, vel)."""
+    rng = np.random.default_rng(seed)
+    ang = rng.uniform(0, 2 * np.pi)
+    P = np.zeros((cap, 2)); V = np.zeros((cap, 2)); alive = np.zeros(cap, bool)
+    P[0] = (rng.uniform(-60, 60), rng.uniform(-60, 60)); V[0] = (v0 * np.cos(ang), v0 * np.sin(ang)); alive[0] = True
+    n = 1
+    dt = 1.0 / sub
+    per = sub // FPS
+    frames, events = [], []
+    lim = R - rb
+    for i in range(int(T * sub)):
+        t = i * dt
+        a = alive
+        V[a, 1] += g * dt
+        P[a] += V[a] * dt
+        d = np.hypot(P[:, 0], P[:, 1])
+        hit = a & (d >= lim)
+        if hit.any():
+            idx = np.nonzero(hit)[0]
+            for j in idx:
+                nx, ny = P[j, 0] / d[j], P[j, 1] / d[j]
+                dot = V[j, 0] * nx + V[j, 1] * ny
+                if dot > 0:
+                    V[j] -= 2 * dot * np.array([nx, ny])
+                    P[j] = np.array([nx, ny]) * (lim - 0.5)
+                    allowed = 1 + int((cap - 1) * min(1.0, t / (T - 4.0)) ** 1.6)
+                    if n < min(cap, allowed):
+                        jit = rng.uniform(-0.35, 0.35)
+                        c, sn = np.cos(jit), np.sin(jit)
+                        P[n] = P[j]
+                        V[n] = (V[j, 0] * c - V[j, 1] * sn, V[j, 0] * sn + V[j, 1] * c)
+                        alive[n] = True
+                        n += 1
+                        events.append((t, n, abs(dot)))
+        if i % per == 0:
+            frames.append((P[:n, 0].copy(), P[:n, 1].copy(), n))
+    return frames, events
+
+
 def solve_fill(T, seed, target=0.955, R=424):
     lo, hi = 0.02, 14.0
     best = None
@@ -400,6 +442,37 @@ def render(a):
                 size = max(1, int(round(r * 2)))
                 lab = f"Size: {size} px" if i < n - 1 else "Size: 1 px"
                 blit(fr, text_layer(lab, 56, tcol_rgb), CX, 1500)
+                yield fr
+            for _ in range(int(1.0 * FPS)):
+                yield fr
+        encode(a.out, wav, gen(), T)
+
+    elif a.kind == "multiply":
+        R = 424
+        bg = make_bg(pal, "circle", R)
+        frames, events = sim_multiply(T, a.seed, R=R)
+        meta.update(final_balls=frames[-1][2], spawns=len(events))
+        notes, last, rng = [], -1.0, random.Random(a.seed)
+        for (t, c, v) in events:
+            if t - last >= 0.11:
+                notes.append((t, SCALE[min(len(SCALE) - 1, int(c / 300 * len(SCALE) * 0.98))], 0.22 + 0.08 * min(1, v / 900)))
+                last = t
+        make_audio(notes, T, wav)
+
+        def gen():
+            nfr = len(frames)
+            for i, (xs, ys, n) in enumerate(frames):
+                fr = bg.copy()
+                layer = np.zeros_like(fr)
+                for k in range(n):
+                    col = grad(pal["stops"], (k / 300.0) * 1.6)
+                    cv2.circle(layer, (int(CX + xs[k]), int(CY + ys[k])), 13, col, -1, cv2.LINE_AA)
+                glow = cv2.GaussianBlur(layer, (0, 0), 14)
+                fr = cv2.add(fr, (glow * 0.8).astype(np.uint8))
+                m = layer.any(axis=2, keepdims=True)
+                fr = np.where(m, layer, fr)
+                title_block(fr, a.title, tcol_rgb)
+                blit(fr, text_layer(f"Balls: {n}", 64, tcol_rgb), CX, 1500)
                 yield fr
             for _ in range(int(1.0 * FPS)):
                 yield fr
