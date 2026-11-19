@@ -1,0 +1,24 @@
+{
+  "kind": "multiply",
+  "pal": "tt_sand",
+  "title": "Can it hit 1000 balls?",
+  "T": 27.0,
+  "seed": 5521,
+  "bounces": 12939,
+  "spawns": 999,
+  "final_balls": 1000,
+  "first_bounce_s": 0.35,
+  "blocked_by_cap": 11940,
+  "video_check": {
+    "duration": 28.0,
+    "frames_checked": [
+      30,
+      90,
+      150,
+      210,
+      405,
+      729
+    ]
+  },
+  "verified": true
+}
