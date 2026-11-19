@@ -83,12 +83,45 @@ def blit(frame, layer, cx, top):
     roi[:] = (roi * (1 - a) + rgb * a).astype(np.uint8)
 
 
+OVERLAY = dict(hook=None, cta=None, series=None, T=50.0, n=0)
+
+
+def blit_fade(frame, layer, cx, top, k):
+    if k <= 0:
+        return
+    lay = layer.copy()
+    lay[:, :, 3] = (lay[:, :, 3].astype(np.float32) * min(1.0, k)).astype(np.uint8)
+    blit(frame, lay, cx, top)
+
+
+def fade(t, t0, t1, ramp=0.4):
+    """0..1 envelope: fade in at t0, fade out ending at t1."""
+    return max(0.0, min(1.0, (t - t0) / ramp, (t1 - t) / ramp))
+
+
+def overlays(frame, color):
+    """Optional series label, hook (first 3.5 s) and follow line (last 3 s). Off unless set."""
+    o = OVERLAY
+    t = o["n"] / FPS
+    o["n"] += 1
+    if o["series"]:
+        blit_fade(frame, text_layer(o["series"], 34, color), CX, 130, 0.7)
+    if o["hook"]:
+        y = 1625
+        for ln in o["hook"].split("|"):
+            blit_fade(frame, text_layer(ln, 44, color), CX, y, fade(t, 0.3, 3.6))
+            y += 62
+    if o["cta"]:
+        blit_fade(frame, text_layer(o["cta"], 46, color), CX, 1640, fade(t, o["T"] - 3.2, o["T"] + 5.0))
+
+
 def title_block(frame, title, color):
     lines = title.split("|")
     y = 215
     for ln in lines:
         blit(frame, text_layer(ln, 64, color), CX, y)
         y += 88
+    overlays(frame, color)
 
 
 # ---------------- background ----------------
@@ -372,4 +405,9 @@ if __name__ == "__main__":
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--out", required=True)
     ap.add_argument("--meta")
-    render(ap.parse_args())
+    ap.add_argument("--hook", help="on-screen line(s) for the first 3.5 s, lines split with |")
+    ap.add_argument("--cta", help="on-screen follow line for the last 3 s")
+    ap.add_argument("--series", help="small series label at the top, e.g. 'BOUNCE TEST 02'")
+    a = ap.parse_args()
+    OVERLAY.update(hook=a.hook, cta=a.cta, series=a.series, T=a.T, n=0)
+    render(a)
