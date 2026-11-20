@@ -404,7 +404,13 @@ def render_multiply(a, meta, wav, tcol_rgb):
     pal = PALS[a.pal]
     bg = make_bg(pal, "circle", R)
     frames, stats = sim_multiply(a.T, a.seed, R=R)
-    verify_multiply(frames, stats, a.T)          # check 1: every bounce counted, nothing outside the arena
+    soft = getattr(a, "soft_verify", False)
+    try:
+        verify_multiply(frames, stats, a.T)      # check 1: every bounce counted, nothing outside the arena
+    except AssertionError as e:
+        if not soft:
+            sys.exit(f"VERIFY FAILED: {e}")
+        meta["verify_warning_sim"] = str(e)       # soft mode: render and keep going
     ringc = hexbgr(pal["ring"])
     cap = stats["cap"]
     cols = [grad(pal["stops"], (k / cap) * 1.6) for k in range(cap)]
@@ -457,9 +463,11 @@ def render_multiply(a, meta, wav, tcol_rgb):
     try:
         meta["video_check"] = verify_video(a.out, frames, a.T, a.hook)   # check 2: what is on screen == the simulation
     except AssertionError as e:
-        os.remove(a.out)
-        sys.exit(f"VERIFY FAILED, video deleted: {e}")
-    meta["verified"] = True
+        if not soft:
+            os.remove(a.out)
+            sys.exit(f"VERIFY FAILED, video deleted: {e}")
+        meta["verify_warning_video"] = str(e)     # soft mode: keep the video, report the problem
+    meta["verified"] = not any(k.startswith("verify_warning") for k in meta)
 
 
 def encode(out, audio, frame_iter, T):
@@ -609,6 +617,7 @@ if __name__ == "__main__":
     ap.add_argument("--meta")
     ap.add_argument("--hook", help="on-screen line(s) for the first 3.5 s, lines split with |")
     ap.add_argument("--cta", help="on-screen follow line for the last 3 s")
+    ap.add_argument("--soft-verify", action="store_true", help="never block: keep the mp4 and exit 0 even if a check fails (meta gets verify_warning_*, verified=false)")
     ap.add_argument("--series", help="small series label at the top, e.g. 'BOUNCE TEST 02'")
     a = ap.parse_args()
     OVERLAY.update(hook=a.hook, cta=a.cta, series=a.series, T=a.T, n=0)
