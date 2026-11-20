@@ -262,7 +262,7 @@ def render_melody(a, meta, wav, tcol_rgb):
             title_block(fr, a.title, tcol_rgb)
             blit(fr, text_layer("NOTES PLAYED", 40, tcol_rgb), CX, 1462)
             blit(fr, text_layer(str(nh), 112, tcol_rgb), CX, 1500)
-            blit(fr, text_layer(last_name, 52, tcol_rgb), CX, 1650)
+            blit(fr, text_layer(last_name, 52, tcol_rgb), CX, 1722)
             prev = (x, y)
             yield fr
         for _ in range(int(1.0 * FPS)):
