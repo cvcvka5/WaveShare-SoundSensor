@@ -1,0 +1,14 @@
+{
+  "kind": "multiply",
+  "pal": "tt_lav",
+  "title": "Can it crash the screen?",
+  "T": 22.0,
+  "seed": 6143,
+  "bounces": 531299,
+  "spawns": 19999,
+  "final_balls": 20000,
+  "first_bounce_s": 0.35,
+  "blocked_by_cap": 511300,
+  "verify_warning_video": "frame 90: screen bounces='04' but sim says 54",
+  "verified": false
+}
