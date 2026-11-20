@@ -144,6 +144,134 @@ def title_block(frame, title, color):
     overlays(frame, color)
 
 
+
+# ---------------- melody (public-domain tunes only) ----------------
+def _tune(txt, shift=0):
+    out = []
+    for tok in txt.split():
+        n, _, d = tok.partition(":")
+        out.append((int(n) + shift, float(d or 1)))
+    return out
+
+TUNES = {
+    "ode": _tune("64 64 65 67 67 65 64 62 60 60 62 64 64:1.5 62:0.5 62:2 "
+                 "64 64 65 67 67 65 64 62 60 60 62 64 62:1.5 60:0.5 60:2", 12),
+    "twinkle": _tune("60 60 67 67 69 69 67:2 65 65 64 64 62 62 60:2 "
+                     "67 67 65 65 64 64 62:2 67 67 65 65 64 64 62:2 "
+                     "60 60 67 67 69 69 67:2 65 65 64 64 62 62 60:2", 12),
+    "elise": _tune("76 75 76 75 76 71 74 72 69:2 60 64 69 71:2 64 68 71 72:2 "
+                   "64 76 75 76 75 76 71 74 72 69:2 60 64 69 71:2 64 72 71 69:3"),
+    "canon": _tune("78 76 74 73 71 69 71 73 74 73 71 69 67 66 67 64:2 "
+                   "78 76 74 73 71 69 71 73 74 73 71 69 67 66 67 64:2"),
+}
+NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+
+
+def note_name(m):
+    return f"{NOTE_NAMES[m % 12]}{m // 12 - 1}"
+
+
+def sim_melody(T, seed, tune, R=424, rb=22.0, v=1500.0, chord_min=480.0, beat=0.27, speedup=0.88, dmin=0.13):
+    """Ball on straight chords between wall hits; hit k plays note k of the tune, on the beat.
+    Chord length = speed * note duration, so the rhythm of the tune is the rhythm of the bounces."""
+    rng = random.Random(seed)
+    notes = TUNES[tune]
+    Rc = R - rb - 3.0
+    t, k, loop, f = 0.35, 0, 0, 1.0
+    ang = rng.uniform(0, 2 * math.pi)
+    sgn = rng.choice([-1, 1])
+    ev = []     # (t, midi, x, y)
+    while t < T - 1.4:
+        midi, dur = notes[k % len(notes)]
+        ev.append((t, midi, Rc * math.cos(ang), Rc * math.sin(ang)))
+        d = max(dmin, beat * dur * f)
+        chord = min(max(v * d, chord_min), 1.9 * Rc)   # long enough to cross the arena, still fast
+        ang += sgn * 2 * math.asin(chord / (2 * Rc))
+        t += d
+        k += 1
+        if k % len(notes) == 0:
+            loop += 1
+            f *= speedup
+            sgn = -sgn
+        elif k % 8 == 0 and rng.random() < 0.4:
+            sgn = -sgn
+    return ev, Rc
+
+
+def verify_melody(ev, Rc, T):
+    assert len(ev) >= 16, f"too few notes: {len(ev)}"
+    for (t, m, x, y) in ev:
+        assert abs(math.hypot(x, y) - Rc) < 0.5, "hit point is not on the wall"
+    ts = [e[0] for e in ev]
+    assert all(b > a for a, b in zip(ts, ts[1:])), "hit times not increasing"
+    assert ts[0] <= 0.4, f"first note too late: {ts[0]}"
+
+
+def render_melody(a, meta, wav, tcol_rgb):
+    import bisect
+    R = 424
+    pal = PALS[a.pal]
+    bg = make_bg(pal, "circle", R)
+    ev, Rc = sim_melody(a.T, a.seed, a.tune, R=R, v=(a.speed if a.speed != 700.0 else 1500.0))
+    verify_melody(ev, Rc, a.T)
+    ringc = hexbgr(pal["ring"])
+    make_audio([(t, m, 0.36) for (t, m, x, y) in ev], a.T, wav)
+    OVERLAY.update(hook_top=True)
+    ts = [e[0] for e in ev]
+    pts = [(0.0, 0.0)] + [(e[2], e[3]) for e in ev]
+    tt = [0.0] + ts
+    n = int(a.T * FPS)
+    trail = np.zeros((H, W, 3), np.uint8)
+    ripples = []   # (frame, x, y, color)
+
+    def pos(t):
+        j = bisect.bisect_right(tt, t) - 1
+        if j >= len(tt) - 1:
+            return pts[-1]
+        u = (t - tt[j]) / (tt[j + 1] - tt[j])
+        return (pts[j][0] + (pts[j + 1][0] - pts[j][0]) * u, pts[j][1] + (pts[j + 1][1] - pts[j][1]) * u)
+
+    def gen():
+        prev = pos(0.0)
+        hits_seen = 0
+        last_name = "-"
+        for i in range(n):
+            t = i / FPS
+            x, y = pos(t)
+            nh = bisect.bisect_right(ts, t)
+            new = nh - hits_seen
+            col = grad(pal["stops"], (max(nh - 1, 0) / 14.0) % 1.0)
+            trail[:] = (trail * 0.988).astype(np.uint8)
+            cv2.line(trail, (int(CX + prev[0]), int(CY + prev[1])), (int(CX + x), int(CY + y)), col, 6, cv2.LINE_AA)
+            for q in range(hits_seen, nh):
+                ripples.append((i, ev[q][2], ev[q][3], col))
+                last_name = note_name(ev[q][1])
+            hits_seen = nh
+            fr = cv2.add(bg, (cv2.GaussianBlur(trail, (0, 0), 6) * 0.7).astype(np.uint8))
+            fr = cv2.add(fr, (trail * 0.8).astype(np.uint8))
+            live = []
+            for (ri, rx, ry, rc) in ripples:
+                k = (i - ri) / 10.0
+                if k <= 1.0:
+                    live.append((ri, rx, ry, rc))
+                    cv2.circle(fr, (int(CX + rx), int(CY + ry)), int(24 + 50 * k), tuple(int(c * (1 - k)) for c in rc), 3, cv2.LINE_AA)
+            ripples[:] = live
+            if new > 0 and i > 0:
+                cv2.circle(fr, (CX, CY), R, ringc, 8, cv2.LINE_AA)
+            draw_ball(fr, CX + x, CY + y, 22, col)
+            title_block(fr, a.title, tcol_rgb)
+            blit(fr, text_layer("NOTES PLAYED", 40, tcol_rgb), CX, 1462)
+            blit(fr, text_layer(str(nh), 112, tcol_rgb), CX, 1500)
+            blit(fr, text_layer(last_name, 52, tcol_rgb), CX, 1650)
+            prev = (x, y)
+            yield fr
+        for _ in range(int(1.0 * FPS)):
+            yield fr
+    encode(a.out, wav, gen(), a.T)
+    meta.update(tune=a.tune, notes=len(ev), first_note_s=round(ts[0], 2), last_note_s=round(ts[-1], 2),
+                loops=round(len(ev) / len(TUNES[a.tune]), 2), verified=True)
+
+
 # ---------------- background ----------------
 def make_bg(pal, shape="circle", R=430):
     bg = np.zeros((H, W, 3), np.uint8)
@@ -567,6 +695,9 @@ def render(a):
     elif a.kind in ("multiply", "multiply2"):
         render_multiply(a, meta, wav, tcol_rgb)
 
+    elif a.kind == "melody":
+        render_melody(a, meta, wav, tcol_rgb)
+
     elif a.kind == "paint":
         A = 860
         size = 64
@@ -609,7 +740,7 @@ def render(a):
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--kind", required=True, choices=["fill", "shrink", "paint", "multiply", "multiply2"])
+    ap.add_argument("--kind", required=True, choices=["fill", "shrink", "paint", "multiply", "multiply2", "melody"])
     ap.add_argument("--pal", required=True, choices=list(PALS))
     ap.add_argument("--title", required=True)
     ap.add_argument("--T", type=float, default=50.0)
@@ -620,6 +751,7 @@ if __name__ == "__main__":
     ap.add_argument("--cta", help="on-screen follow line for the last 3 s")
     ap.add_argument("--cap", type=int, default=1000, help="multiply: max balls (chaos mode: 8000 or more, no visible limit)")
     ap.add_argument("--speed", type=float, default=700.0, help="multiply: ball speed in px/s (chaos mode: 1100)")
+    ap.add_argument("--tune", default="ode", choices=sorted(TUNES), help="melody: public-domain tune (ode, twinkle, elise, canon)")
     ap.add_argument("--soft-verify", action="store_true", help="never block: keep the mp4 and exit 0 even if a check fails (meta gets verify_warning_*, verified=false)")
     ap.add_argument("--series", help="small series label at the top, e.g. 'BOUNCE TEST 02'")
     a = ap.parse_args()
