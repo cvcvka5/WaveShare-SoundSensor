@@ -403,7 +403,8 @@ def render_multiply(a, meta, wav, tcol_rgb):
     R = 424
     pal = PALS[a.pal]
     bg = make_bg(pal, "circle", R)
-    frames, stats = sim_multiply(a.T, a.seed, R=R)
+    big = getattr(a, 'cap', 1000) >= 5000   # chaos mode: smaller balls, no MAX label
+    frames, stats = sim_multiply(a.T, a.seed, R=R, r=(6.0 if big else 9.0), v=getattr(a,'speed',700.0), cap=getattr(a,'cap',1000))
     soft = getattr(a, "soft_verify", False)
     try:
         verify_multiply(frames, stats, a.T)      # check 1: every bounce counted, nothing outside the arena
@@ -450,7 +451,7 @@ def render_multiply(a, meta, wav, tcol_rgb):
             if nh and i > 0:
                 cv2.circle(fr, (CX, CY), R, ringc, 4 + min(10, nh), cv2.LINE_AA)
             title_block(fr, a.title, tcol_rgb)
-            blit(fr, text_layer("BALLS" if f["n"] < cap else "BALLS (MAX)", 40, tcol_rgb), CX, 1462)
+            blit(fr, text_layer("BALLS" if (f["n"] < cap or big) else "BALLS (MAX)", 40, tcol_rgb), CX, 1462)
             blit(fr, text_layer(str(f["n"]), 112, tcol_rgb), CX, 1500)
             blit(fr, text_layer("BOUNCES", 30, tcol_rgb), CX, 1640)
             blit(fr, text_layer(str(f["bounces"]), 52, tcol_rgb), CX, 1695)
@@ -617,6 +618,8 @@ if __name__ == "__main__":
     ap.add_argument("--meta")
     ap.add_argument("--hook", help="on-screen line(s) for the first 3.5 s, lines split with |")
     ap.add_argument("--cta", help="on-screen follow line for the last 3 s")
+    ap.add_argument("--cap", type=int, default=1000, help="multiply: max balls (chaos mode: 8000 or more, no visible limit)")
+    ap.add_argument("--speed", type=float, default=700.0, help="multiply: ball speed in px/s (chaos mode: 1100)")
     ap.add_argument("--soft-verify", action="store_true", help="never block: keep the mp4 and exit 0 even if a check fails (meta gets verify_warning_*, verified=false)")
     ap.add_argument("--series", help="small series label at the top, e.g. 'BOUNCE TEST 02'")
     a = ap.parse_args()
