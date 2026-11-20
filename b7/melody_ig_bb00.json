@@ -1,0 +1,13 @@
+{
+  "kind": "melody",
+  "pal": "bb00",
+  "title": "NAME THE SONG",
+  "T": 22.0,
+  "seed": 11,
+  "tune": "elise",
+  "notes": 68,
+  "first_note_s": 0.35,
+  "last_note_s": 20.48,
+  "loops": 1.94,
+  "verified": true
+}

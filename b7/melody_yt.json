@@ -1,0 +1,13 @@
+{
+  "kind": "melody",
+  "pal": "tt_lav",
+  "title": "SOUNDS FAMILIAR?",
+  "T": 22.0,
+  "seed": 21,
+  "tune": "twinkle",
+  "notes": 70,
+  "first_note_s": 0.35,
+  "last_note_s": 20.44,
+  "loops": 1.67,
+  "verified": true
+}

@@ -1,0 +1,13 @@
+{
+  "kind": "melody",
+  "pal": "lab",
+  "title": "CAN YOU GUESS IT?",
+  "T": 22.0,
+  "seed": 5,
+  "tune": "ode",
+  "notes": 78,
+  "first_note_s": 0.35,
+  "last_note_s": 20.4,
+  "loops": 2.6,
+  "verified": true
+}

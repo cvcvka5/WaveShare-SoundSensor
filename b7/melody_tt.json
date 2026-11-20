@@ -1,0 +1,13 @@
+{
+  "kind": "melody",
+  "pal": "tt_ocean",
+  "title": "NAME THIS SONG",
+  "T": 22.0,
+  "seed": 8,
+  "tune": "canon",
+  "notes": 79,
+  "first_note_s": 0.35,
+  "last_note_s": 20.54,
+  "loops": 2.47,
+  "verified": true
+}
