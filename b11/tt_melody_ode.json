@@ -1,0 +1,13 @@
+{
+  "kind": "melody",
+  "pal": "tt_peach",
+  "title": "Name this song by the bounces",
+  "T": 22.0,
+  "seed": 7712,
+  "tune": "ode",
+  "notes": 78,
+  "first_note_s": 0.35,
+  "last_note_s": 20.4,
+  "loops": 2.6,
+  "verified": true
+}
