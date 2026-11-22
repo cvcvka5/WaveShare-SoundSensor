@@ -1,0 +1,13 @@
+{
+  "kind": "grow",
+  "pal": "bb00",
+  "title": "Grow Per Bounce|Will It Fit?",
+  "T": 45.0,
+  "seed": 7731,
+  "tune": "ode",
+  "growth_px_per_bounce": 3.957,
+  "bounces": 100,
+  "final_fill": 90.2,
+  "final_counter": 99,
+  "verified": true
+}

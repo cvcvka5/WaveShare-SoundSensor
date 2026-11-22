@@ -1,0 +1,24 @@
+{
+  "kind": "multiply",
+  "pal": "lab",
+  "title": "Every Bounce Adds A Ball",
+  "T": 22.0,
+  "seed": 5521,
+  "bounces": 523142,
+  "spawns": 19999,
+  "final_balls": 20000,
+  "first_bounce_s": 0.35,
+  "blocked_by_cap": 503143,
+  "video_check": {
+    "duration": 23.0,
+    "frames_checked": [
+      30,
+      90,
+      150,
+      210,
+      330,
+      594
+    ]
+  },
+  "verified": true
+}

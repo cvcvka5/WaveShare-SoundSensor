@@ -2,7 +2,8 @@
 """simlab: original long-form physics-sim Reels (1080x1920, 30fps, H.264 + AAC).
 Kinds: fill (growing ball leaves rings, fills the arena), paint (block paints a square),
 shrink (ball shrinks to nothing, live size counter),
-multiply (every wall bounce adds one ball; the render self-verifies counts, see verify_*).
+multiply (every wall bounce adds one ball; the render self-verifies counts, see verify_*),
+melody (each wall hit plays the next note), grow (ball grows each bounce, each bounce plays a note of --tune; added 2026-11-22).
 Usage: simlab.py --kind fill --pal bb00 --title "..." --T 50 --seed 7 --out out/x.mp4 [--meta out/x.json]
 """
 import argparse, json, math, os, random, subprocess, sys
@@ -163,6 +164,11 @@ TUNES = {
                    "64 76 75 76 75 76 71 74 72 69:2 60 64 69 71:2 64 72 71 69:3"),
     "canon": _tune("78 76 74 73 71 69 71 73 74 73 71 69 67 66 67 64:2 "
                    "78 76 74 73 71 69 71 73 74 73 71 69 67 66 67 64:2"),
+    # added 2026-11-22 (public domain): Mozart, Eine kleine Nachtmusik opening; Grieg, Morning Mood theme
+    "nachtmusik": _tune("67:1.5 62:0.5 67 62 67 62 67 71 74:2 72:1.5 69:0.5 72 69 72 69 72 66 69 74:2 "
+                        "67:1.5 62:0.5 67 62 67 62 67 71 74:2"),
+    "morning": _tune("76 73 71 69 71 73 76 73 71 69 71 73 76 73 71 69:2 "
+                     "81 78 76 73 76 78 81 78 76 73 76 78 81 78 76 73:2"),
 }
 NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 
@@ -270,6 +276,69 @@ def render_melody(a, meta, wav, tcol_rgb):
     encode(a.out, wav, gen(), a.T)
     meta.update(tune=a.tune, notes=len(ev), first_note_s=round(ts[0], 2), last_note_s=round(ts[-1], 2),
                 loops=round(len(ev) / len(TUNES[a.tune]), 2), verified=True)
+
+
+
+# ---------------- grow: ball grows on every bounce, each bounce plays the next note ----------------
+def sim_grow(T, seed, R=424, v0=1000.0, r0=11.0, target=0.955):
+    lo, hi = 0.02, 14.0
+    best = None
+    for _ in range(18):
+        gr = (lo + hi) / 2
+        frames, events = sim_circle(T - 2.0, seed, lambda t, nb: min(R - 1.0, r0 + gr * nb), gr, R, g=0.0, v0=v0)
+        rf = frames[-1][2]
+        best = (gr, frames, events)
+        if rf < target * R:
+            lo = gr
+        else:
+            hi = gr
+    return best
+
+
+def render_grow(a, meta, wav, tcol_rgb):
+    R = 424
+    pal = PALS[a.pal]
+    bg = make_bg(pal, "circle", R)
+    gr, frames, events = sim_grow(a.T, a.seed, R=R, v0=(a.speed if a.speed != 700.0 else 1000.0))
+    notes_src = TUNES[a.tune]
+    ev_audio, last_t = [], -1.0
+    for (t, nb, v) in events:
+        if t - last_t >= 0.09:
+            ev_audio.append((t, notes_src[(nb - 1) % len(notes_src)][0], 0.34))
+            last_t = t
+    make_audio(ev_audio, a.T, wav)
+    OVERLAY.update(hook_top=True)
+    ringc = hexbgr(pal["ring"])
+    trail = np.zeros((H, W, 3), np.uint8)
+    ev_t = [e[0] for e in events]
+    import bisect
+
+    def gen():
+        prev = None
+        n = len(frames)
+        for i, (x, y, r, nb) in enumerate(frames):
+            u = i / n
+            col = grad(pal["stops"], u * 1.6)
+            trail[:] = (trail * 0.93).astype(np.uint8)
+            if prev is not None:
+                cv2.line(trail, (int(CX + prev[0]), int(CY + prev[1])), (int(CX + x), int(CY + y)), tuple(int(c * 0.7) for c in col), max(3, int(r * 0.5)), cv2.LINE_AA)
+            fr = cv2.add(bg, (cv2.GaussianBlur(trail, (0, 0), 8) * 0.6).astype(np.uint8))
+            fr = cv2.add(fr, (trail * 0.55).astype(np.uint8))
+            if i > 0 and frames[i][3] != frames[i - 1][3]:
+                cv2.circle(fr, (CX, CY), R, ringc, 9, cv2.LINE_AA)
+            draw_ball(fr, CX + x, CY + y, r, col)
+            title_block(fr, a.title, tcol_rgb)
+            blit(fr, text_layer("BOUNCES", 40, tcol_rgb), CX, 1462)
+            blit(fr, text_layer(str(nb), 112, tcol_rgb), CX, 1500)
+            pct = int(round(100 * (r / R) ** 2))
+            blit(fr, text_layer(f"Size: {pct}% of the circle", 44, tcol_rgb), CX, 1722)
+            prev = (x, y)
+            yield fr
+        for _ in range(int(1.2 * FPS)):
+            yield fr
+    encode(a.out, wav, gen(), a.T)
+    meta.update(tune=a.tune, growth_px_per_bounce=round(gr, 3), bounces=len(events), final_fill=round(100 * (frames[-1][2] / R) ** 2, 1),
+                final_counter=frames[-1][3], verified=(frames[-1][3] == len(events) or abs(frames[-1][3] - len(events)) < 3))
 
 
 # ---------------- background ----------------
@@ -698,6 +767,9 @@ def render(a):
     elif a.kind == "melody":
         render_melody(a, meta, wav, tcol_rgb)
 
+    elif a.kind == "grow":
+        render_grow(a, meta, wav, tcol_rgb)
+
     elif a.kind == "paint":
         A = 860
         size = 64
@@ -740,7 +812,7 @@ def render(a):
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--kind", required=True, choices=["fill", "shrink", "paint", "multiply", "multiply2", "melody"])
+    ap.add_argument("--kind", required=True, choices=["fill", "shrink", "paint", "multiply", "multiply2", "melody", "grow"])
     ap.add_argument("--pal", required=True, choices=list(PALS))
     ap.add_argument("--title", required=True)
     ap.add_argument("--T", type=float, default=50.0)
@@ -751,7 +823,7 @@ if __name__ == "__main__":
     ap.add_argument("--cta", help="on-screen follow line for the last 3 s")
     ap.add_argument("--cap", type=int, default=1000, help="multiply: max balls (chaos mode: 8000 or more, no visible limit)")
     ap.add_argument("--speed", type=float, default=700.0, help="multiply: ball speed in px/s (chaos mode: 1100)")
-    ap.add_argument("--tune", default="ode", choices=sorted(TUNES), help="melody: public-domain tune (ode, twinkle, elise, canon)")
+    ap.add_argument("--tune", default="ode", choices=sorted(TUNES), help="melody: public-domain tune (ode, twinkle, elise, canon, nachtmusik, morning)")
     ap.add_argument("--soft-verify", action="store_true", help="never block: keep the mp4 and exit 0 even if a check fails (meta gets verify_warning_*, verified=false)")
     ap.add_argument("--series", help="small series label at the top, e.g. 'BOUNCE TEST 02'")
     a = ap.parse_args()

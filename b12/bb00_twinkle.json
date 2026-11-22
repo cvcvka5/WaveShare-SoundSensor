@@ -1,0 +1,13 @@
+{
+  "kind": "melody",
+  "pal": "bb00",
+  "title": "Twinkle Twinkle|Can You Hear It?",
+  "T": 22.0,
+  "seed": 8841,
+  "tune": "twinkle",
+  "notes": 70,
+  "first_note_s": 0.35,
+  "last_note_s": 20.44,
+  "loops": 1.67,
+  "verified": true
+}
