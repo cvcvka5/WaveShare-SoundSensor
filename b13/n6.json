@@ -1,0 +1,13 @@
+{
+  "kind": "melody",
+  "pal": "tt",
+  "title": "Sounds familiar...",
+  "T": 22.0,
+  "seed": 2206,
+  "tune": "elise",
+  "notes": 68,
+  "first_note_s": 0.35,
+  "last_note_s": 20.48,
+  "loops": 1.94,
+  "verified": true
+}

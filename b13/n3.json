@@ -1,0 +1,13 @@
+{
+  "kind": "melody",
+  "pal": "tt_ocean",
+  "title": "Do you know it?",
+  "T": 22.0,
+  "seed": 2203,
+  "tune": "nachtmusik",
+  "notes": 76,
+  "first_note_s": 0.35,
+  "last_note_s": 20.56,
+  "loops": 2.71,
+  "verified": true
+}

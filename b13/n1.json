@@ -1,0 +1,13 @@
+{
+  "kind": "melody",
+  "pal": "tt",
+  "title": "Name this tune",
+  "T": 22.0,
+  "seed": 2201,
+  "tune": "morning",
+  "notes": 79,
+  "first_note_s": 0.35,
+  "last_note_s": 20.54,
+  "loops": 2.47,
+  "verified": true
+}

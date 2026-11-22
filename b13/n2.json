@@ -1,0 +1,12 @@
+{
+  "kind": "circle",
+  "pal": "tt_peach",
+  "title": "Bounces till a circle?",
+  "T": 24.0,
+  "seed": 2202,
+  "tune": "ode",
+  "bounces": 47,
+  "sides_max": 30,
+  "final_counter": 47,
+  "verified": true
+}

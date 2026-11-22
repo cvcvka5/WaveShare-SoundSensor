@@ -1,0 +1,14 @@
+{
+  "kind": "multiply",
+  "pal": "tt_lav",
+  "title": "1 bounce = 2 balls",
+  "T": 22.0,
+  "seed": 2204,
+  "bounces": 529846,
+  "spawns": 19999,
+  "final_balls": 20000,
+  "first_bounce_s": 0.35,
+  "blocked_by_cap": 509847,
+  "verify_warning_video": "frame 90: screen bounces='438' but sim says 48",
+  "verified": false
+}

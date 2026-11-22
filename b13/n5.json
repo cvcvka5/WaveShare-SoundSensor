@@ -1,0 +1,13 @@
+{
+  "kind": "grow",
+  "pal": "tt_sand",
+  "title": "It grows every bounce",
+  "T": 24.0,
+  "seed": 2205,
+  "tune": "twinkle",
+  "growth_px_per_bounce": 7.73,
+  "bounces": 51,
+  "final_fill": 91.3,
+  "final_counter": 51,
+  "verified": true
+}

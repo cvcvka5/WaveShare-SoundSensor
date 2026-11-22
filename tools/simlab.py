@@ -341,6 +341,51 @@ def render_grow(a, meta, wav, tcol_rgb):
                 final_counter=frames[-1][3], verified=(frames[-1][3] == len(events) or abs(frames[-1][3] - len(events)) < 3))
 
 
+def render_circle(a, meta, wav, tcol_rgb):
+    """count-to-circle: a polygon gains one side per wall bounce until it reads as a circle."""
+    R = 424
+    pal = PALS[a.pal]
+    bg = make_bg(pal, "circle", R)
+    rp = 92.0
+    frames, events = sim_circle(a.T - 2.0, a.seed, lambda t, nb: rp, 0.0, R, g=0.0, v0=(a.speed if a.speed != 700.0 else 1100.0))
+    notes_src = TUNES[a.tune]
+    ev_audio, last_t = [], -1.0
+    for (t, nb, v) in events:
+        if t - last_t >= 0.09:
+            ev_audio.append((t, notes_src[(nb - 1) % len(notes_src)][0], 0.34))
+            last_t = t
+    make_audio(ev_audio, a.T, wav)
+    OVERLAY.update(hook_top=True)
+    ringc = hexbgr(pal["ring"])
+    SIDES_MAX = 30
+    n = len(frames)
+
+    def gen():
+        for i, (x, y, r, nb) in enumerate(frames):
+            col = grad(pal["stops"], i / n * 1.6)
+            fr = bg.copy()
+            if i > 0 and frames[i][3] != frames[i - 1][3]:
+                cv2.circle(fr, (CX, CY), R, ringc, 9, cv2.LINE_AA)
+            sides = min(SIDES_MAX, 2 + nb)
+            sides = max(3, sides)
+            ang = i * 0.045
+            pts = np.array([[CX + x + rp * math.cos(ang + 2 * math.pi * k / sides),
+                             CY + y + rp * math.sin(ang + 2 * math.pi * k / sides)] for k in range(sides)], np.int32)
+            cv2.fillPoly(fr, [pts], col, cv2.LINE_AA)
+            cv2.polylines(fr, [pts], True, tuple(int(c * 0.6) for c in col), 3, cv2.LINE_AA)
+            title_block(fr, a.title, tcol_rgb)
+            blit(fr, text_layer("BOUNCES", 40, tcol_rgb), CX, 1462)
+            blit(fr, text_layer(str(nb), 112, tcol_rgb), CX, 1500)
+            lab = "Sides: %d" % sides if sides < SIDES_MAX else "A PERFECT CIRCLE"
+            blit(fr, text_layer(lab, 48, tcol_rgb), CX, 1722)
+            yield fr
+        for _ in range(int(1.2 * FPS)):
+            yield fr
+    encode(a.out, wav, gen(), a.T)
+    meta.update(tune=a.tune, bounces=len(events), sides_max=SIDES_MAX, final_counter=frames[-1][3],
+                verified=(frames[-1][3] >= SIDES_MAX - 2))
+
+
 # ---------------- background ----------------
 def make_bg(pal, shape="circle", R=430):
     bg = np.zeros((H, W, 3), np.uint8)
@@ -770,6 +815,9 @@ def render(a):
     elif a.kind == "grow":
         render_grow(a, meta, wav, tcol_rgb)
 
+    elif a.kind == "circle":
+        render_circle(a, meta, wav, tcol_rgb)
+
     elif a.kind == "paint":
         A = 860
         size = 64
@@ -812,7 +860,7 @@ def render(a):
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--kind", required=True, choices=["fill", "shrink", "paint", "multiply", "multiply2", "melody", "grow"])
+    ap.add_argument("--kind", required=True, choices=["fill", "shrink", "paint", "multiply", "multiply2", "melody", "grow", "circle"])
     ap.add_argument("--pal", required=True, choices=list(PALS))
     ap.add_argument("--title", required=True)
     ap.add_argument("--T", type=float, default=50.0)

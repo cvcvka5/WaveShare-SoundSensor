@@ -1,0 +1,10 @@
+{
+  "kind": "paint",
+  "pal": "tt_ocean",
+  "title": "Can it paint EVERY square?",
+  "T": 40.0,
+  "seed": 2207,
+  "speed": 717,
+  "final_coverage": 98.5,
+  "bounces": 49
+}
