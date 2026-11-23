@@ -1,0 +1,10 @@
+{
+  "kind": "paint",
+  "pal": "bb00",
+  "title": "One Square|Whole Screen",
+  "T": 45.0,
+  "seed": 4410,
+  "speed": 695,
+  "final_coverage": 98.5,
+  "bounces": 54
+}
