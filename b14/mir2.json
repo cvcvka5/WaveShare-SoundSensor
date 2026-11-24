@@ -1,0 +1,14 @@
+{
+  "kind": "mirror",
+  "pal": "bb00",
+  "title": "Oval Mirror|They All Come Back",
+  "T": 32.0,
+  "seed": 5,
+  "variant": 2,
+  "a": 460.0,
+  "b": 390.0,
+  "focal": 243.9,
+  "leg_s": 1.45,
+  "rays_final": 160,
+  "verified": true
+}

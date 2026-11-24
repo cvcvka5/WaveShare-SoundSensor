@@ -1,0 +1,14 @@
+{
+  "kind": "mirror",
+  "pal": "lab",
+  "title": "The Ellipse Trick|All Balls Arrive Together",
+  "T": 32.0,
+  "seed": 3,
+  "variant": 1,
+  "a": 480.0,
+  "b": 330.0,
+  "focal": 348.6,
+  "leg_s": 1.45,
+  "rays_final": 192,
+  "verified": true
+}

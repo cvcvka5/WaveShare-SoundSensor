@@ -1,0 +1,28 @@
+{
+  "kind": "squeeze",
+  "pal": "lab",
+  "title": "Steel Bars Crush Every Ball|Each One Becomes Four",
+  "T": 31.0,
+  "seed": 4,
+  "squeezes": 12,
+  "final_balls": 4999,
+  "counts_sample": [
+    1,
+    1,
+    1,
+    1,
+    4,
+    10,
+    22,
+    64,
+    142,
+    340,
+    832,
+    1981,
+    4639,
+    4999,
+    4999,
+    4999
+  ],
+  "verified": true
+}

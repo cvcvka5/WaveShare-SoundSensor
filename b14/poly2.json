@@ -1,0 +1,13 @@
+{
+  "kind": "polyfit",
+  "pal": "lab",
+  "title": "Hexagon Squeeze|One Note Per Bounce",
+  "T": 32.0,
+  "seed": 8,
+  "sides": 6,
+  "tune": "canon",
+  "bounces": 64,
+  "speed_K": 3.646,
+  "last_bounce_s": 28.4,
+  "verified": true
+}

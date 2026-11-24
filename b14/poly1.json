@@ -1,0 +1,13 @@
+{
+  "kind": "polyfit",
+  "pal": "bb00",
+  "title": "The Shrinking Triangle|Watch It Fit",
+  "T": 30.0,
+  "seed": 5,
+  "sides": 3,
+  "tune": "ode",
+  "bounces": 60,
+  "speed_K": 4.02,
+  "last_bounce_s": 26.39,
+  "verified": true
+}

@@ -1,0 +1,33 @@
+{
+  "kind": "escape",
+  "pal": "lab",
+  "title": "Two Rings, One Way Out|Who Escapes?",
+  "T": 32.0,
+  "seed": 21,
+  "variant": 2,
+  "seed_used": 57,
+  "balls": 5,
+  "escapes": [
+    [
+      6.32,
+      3
+    ],
+    [
+      6.56,
+      0
+    ],
+    [
+      11.0,
+      1
+    ],
+    [
+      15.89,
+      4
+    ],
+    [
+      24.31,
+      2
+    ]
+  ],
+  "verified": true
+}

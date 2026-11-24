@@ -1,0 +1,37 @@
+{
+  "kind": "escape",
+  "pal": "bb00",
+  "title": "Which Ball Escapes?|Guess First",
+  "T": 30.0,
+  "seed": 11,
+  "variant": 1,
+  "seed_used": 69,
+  "balls": 6,
+  "escapes": [
+    [
+      4.74,
+      2
+    ],
+    [
+      5.4,
+      5
+    ],
+    [
+      8.89,
+      0
+    ],
+    [
+      9.44,
+      4
+    ],
+    [
+      17.7,
+      1
+    ],
+    [
+      24.47,
+      3
+    ]
+  ],
+  "verified": true
+}

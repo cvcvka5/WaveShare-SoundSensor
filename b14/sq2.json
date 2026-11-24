@@ -1,0 +1,27 @@
+{
+  "kind": "squeeze",
+  "pal": "bb00",
+  "title": "Press vs Ring|Who Breaks First?",
+  "T": 30.0,
+  "seed": 9,
+  "squeezes": 11,
+  "final_balls": 4996,
+  "counts_sample": [
+    1,
+    1,
+    1,
+    1,
+    4,
+    10,
+    22,
+    61,
+    154,
+    358,
+    847,
+    2098,
+    4996,
+    4996,
+    4996
+  ],
+  "verified": true
+}
