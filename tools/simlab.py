@@ -133,7 +133,7 @@ def overlays(frame, color):
             blit_fade(frame, text_layer(ln, 44, color), CX, y, fade(t, -1.0, 3.6))
             y += 62
     if o["cta"]:
-        blit_fade(frame, text_layer(o["cta"], 46, color), CX, (1860 if o.get("hook_top") else 1640), fade(t, o["T"] - 3.2, o["T"] + 5.0))
+        blit_fade(frame, text_layer(o["cta"], 46, color), CX, (1830 if o.get("hook_top") else 1640), fade(t, o["T"] - 3.2, o["T"] + 5.0))
 
 
 def title_block(frame, title, color):
